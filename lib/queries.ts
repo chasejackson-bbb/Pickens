@@ -9,11 +9,38 @@ export async function getAllPlayers() {
   return prisma.player.findMany({ orderBy: { sortOrder: "asc" } });
 }
 
-/** Cumulative points per player for a season, ranked highest first. */
-export async function getSeasonStandings(seasonId: string) {
+/**
+ * Cumulative points per player for a season, ranked highest first.
+ *
+ * Regular season only by default (excludes Week.isPostseason) -- this is what decides the
+ * $150 season-long pot, which per the group's rules is a separate competition from the
+ * playoffs. Pass includePostseason: true for a combined view; use getPostseasonStandings for
+ * the playoffs' own (separate) standings.
+ */
+export async function getSeasonStandings(seasonId: string, options?: { includePostseason?: boolean }) {
   const players = await getAllPlayers();
   const picks = await prisma.pick.findMany({
-    where: { week: { seasonId } },
+    where: { week: { seasonId, isPostseason: options?.includePostseason ? undefined : false } },
+    select: { playerId: true, points: true },
+  });
+
+  const totals = new Map<string, number>();
+  for (const p of players) totals.set(p.id, 0);
+  for (const pick of picks) {
+    if (pick.points === null) continue;
+    totals.set(pick.playerId, (totals.get(pick.playerId) ?? 0) + pick.points);
+  }
+
+  return players
+    .map((p) => ({ player: p, points: totals.get(p.id) ?? 0 }))
+    .sort((a, b) => b.points - a.points);
+}
+
+/** Standings for just a season's postseason weeks -- its own separate competition, not part of the $150 season pot. */
+export async function getPostseasonStandings(seasonId: string) {
+  const players = await getAllPlayers();
+  const picks = await prisma.pick.findMany({
+    where: { week: { seasonId, isPostseason: true } },
     select: { playerId: true, points: true },
   });
 

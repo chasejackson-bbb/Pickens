@@ -89,7 +89,7 @@ See `prisma/schema.prisma` for the full model with inline comments. Highlights:
   **Reveal all guesses**. The target player/stat is editable per week for byes/injuries.
 - `DraftOrder` — randomized at draft start, with a manual-override option.
 - `Payout` / `PayoutConfig` — a simple ledger (owed/won/settled) plus a configurable pot
-  structure. See [Payout structure](#payout-structure-needs-your-input).
+  structure. See [Payout structure](#payout-structure).
 - `TeamAlias` — maps every informal name/nickname/typo to one of the 32 canonical NFL teams.
   Seeded from `lib/teams.ts`, editable at runtime via `POST /api/team-aliases` without a
   redeploy.
@@ -116,16 +116,22 @@ final score, or `POST /api/picks/:id/override` for a bad pick result) is always 
 a data-source error, and once a pick or game is manually overridden, future auto-syncs leave it
 alone.
 
-## Payout structure (needs your input)
+## Payout structure
 
-The original spreadsheet never recorded dollar amounts -- only pick results -- **except** the
-2019 sheets, which noted a **$20 weekly pot, winner-take-all, split evenly among co-winners on
-a tie** (e.g. "Woodi 6.66 / Jay 6.66 / Chase 6.67"). That's what's seeded as the default
-`PayoutConfig`. It does **not** account for a season pot or 2nd/3rd place payouts, even though
-the sheet's "Stats" tab tracked 1st/2nd/3rd finishes every week (suggesting placement may have
-mattered for something). **Confirm the real structure with the group** and edit it on the
-**Payouts** page -- both a weekly pot and a season pot are supported, with either
-winner-take-all or a configurable 1st/2nd/3rd split.
+Confirmed with the group:
+
+- **$15** weekly pot, winner-take-all.
+- **$150** season-long pot, also winner-take-all, decided by **regular-season standings only
+  (weeks 1-18)**.
+- **The postseason is a separate competition** -- its own standings, not folded into the $150
+  season pot or the regular-season standings shown on the dashboard. (`Week.isPostseason`
+  drives this: `getSeasonStandings` excludes postseason weeks by default, and the home page
+  shows postseason standings in their own box when a season has playoff weeks.)
+
+This is seeded as the default `PayoutConfig` (`weeklyPotAmount: 15`, `seasonPotAmount: 150`,
+`seasonEndsAtWeek: 18`, `structure: "winner_take_all"`) and editable on the **Payouts** page --
+a 1st/2nd/3rd split structure is also supported there if the group ever wants to use it,
+including for a postseason pot, though no dollar amount has been set for the postseason yet.
 
 ## Historical import
 
@@ -184,7 +190,8 @@ rows distinguished by whether they hold one value (the actual result) or several
 
 ## Open items still worth a real decision
 
-- **Payout amounts** -- see above, defaults are a best guess from thin evidence.
+- **Postseason payout** -- confirmed the postseason is a separate competition from the $150
+  season pot, but no dollar amount has been set for it yet.
 - **2020/2021** -- confirmed absent from the workbook; if the group has that data elsewhere, it
   can be imported the same way.
 - **Odds API plan** -- the free tier comfortably covers a few draft nights + score syncs a week

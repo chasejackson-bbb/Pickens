@@ -23,14 +23,15 @@ async function main() {
   if (!existingConfig) {
     await prisma.payoutConfig.create({
       data: {
-        weeklyPotAmount: 20,
-        seasonPotAmount: 0,
+        weeklyPotAmount: 15,
+        seasonPotAmount: 150,
+        seasonEndsAtWeek: 18,
         structure: "winner_take_all",
         notes:
-          "Defaults inferred from the only dollar evidence in the legacy spreadsheet (2019 sheets: $20 weekly pot, winner-take-all, split evenly on ties). Confirm real amounts with the group.",
+          "Confirmed with the group: $15/week, $150 season-long pot decided by regular-season standings through week 18. The postseason is a separate competition, not part of this pot.",
       },
     });
-    console.log("Seeded default payout config ($20/week, winner-take-all).");
+    console.log("Seeded default payout config ($15/week, $150/season through week 18, winner-take-all).");
   }
 }
 

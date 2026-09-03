@@ -20,7 +20,15 @@ export default async function PayoutsPage() {
       initialConfig={
         config
           ? JSON.parse(JSON.stringify(config))
-          : { weeklyPotAmount: 20, seasonPotAmount: 0, structure: "winner_take_all", splitFirst: 1, splitSecond: 0, splitThird: 0 }
+          : {
+              weeklyPotAmount: 15,
+              seasonPotAmount: 150,
+              seasonEndsAtWeek: 18,
+              structure: "winner_take_all",
+              splitFirst: 1,
+              splitSecond: 0,
+              splitThird: 0,
+            }
       }
     />
   );

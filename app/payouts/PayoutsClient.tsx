@@ -79,9 +79,9 @@ export function PayoutsClient({
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Pot configuration</h3>
         <p className="muted" style={{ fontSize: "0.85rem" }}>
-          Defaults are inferred from the only dollar amount recorded in the legacy spreadsheet (a $20 weekly pot,
-          winner-take-all, split evenly on ties, from the 2019 sheets). Confirm real amounts with the group and edit
-          below.
+          $15/week, $150 for the season-long pot. The season pot is decided by regular-season
+          standings through the week below -- the postseason is a separate competition and isn&apos;t
+          part of it.
         </p>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
           <label>
@@ -101,6 +101,16 @@ export function PayoutsClient({
               type="number"
               value={config.seasonPotAmount}
               onChange={(e) => setConfig({ ...config, seasonPotAmount: Number(e.target.value) })}
+              style={{ width: "6rem" }}
+            />
+          </label>
+          <label>
+            Season ends at week
+            <br />
+            <input
+              type="number"
+              value={config.seasonEndsAtWeek ?? 18}
+              onChange={(e) => setConfig({ ...config, seasonEndsAtWeek: Number(e.target.value) })}
               style={{ width: "6rem" }}
             />
           </label>

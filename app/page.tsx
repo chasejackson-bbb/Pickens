@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getSeasonStandings } from "@/lib/queries";
+import { getSeasonStandings, getPostseasonStandings } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,8 @@ export default async function HomePage({ searchParams }: { searchParams: { seaso
     orderBy: { weekNumber: "asc" },
     select: { id: true, weekNumber: true, label: true, status: true, isPostseason: true },
   });
+  const hasPostseason = weeks.some((w) => w.isPostseason);
+  const postseasonStandings = hasPostseason ? await getPostseasonStandings(season.id) : [];
 
   return (
     <div>
@@ -38,6 +40,10 @@ export default async function HomePage({ searchParams }: { searchParams: { seaso
       </div>
 
       <div className="card">
+        <p className="muted" style={{ marginTop: 0, fontSize: "0.85rem" }}>
+          Regular season only (weeks 1-18) -- this is what decides the $150 season-long pot. The
+          postseason is scored separately below and isn&apos;t part of this total.
+        </p>
         <table>
           <thead>
             <tr>
@@ -59,6 +65,32 @@ export default async function HomePage({ searchParams }: { searchParams: { seaso
           </tbody>
         </table>
       </div>
+
+      {hasPostseason && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Postseason (separate competition)</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              {postseasonStandings.map((s, i) => (
+                <tr key={s.player.id}>
+                  <td>{i + 1}</td>
+                  <td>{s.player.name}</td>
+                  <td>
+                    <strong>{s.points}</strong>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Weeks</h3>

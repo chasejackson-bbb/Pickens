@@ -186,14 +186,16 @@ model Payout {
 
 // structure: "winner_take_all" | "split_123"
 // splitFirst/Second/Third are fractions of the pot (only used when structure = split_123).
-// Defaults are seeded from the one piece of dollar evidence in the legacy spreadsheet
-// (2019 sheets recorded a $20 weekly pot, winner-take-all, split evenly on ties) --
-// confirm actual amounts with the group and edit here.
+// Confirmed with the group: $15/week, $150 for the season-long pot. The season pot is decided
+// by regular-season standings only, through seasonEndsAtWeek (18) -- the postseason is a
+// separate competition with its own standings (see Week.isPostseason), not folded into the
+// $150 pot or its standings.
 model PayoutConfig {
   id               String   @id @default(cuid())
   seasonId         String?
-  weeklyPotAmount  Float    @default(20)
-  seasonPotAmount  Float    @default(0)
+  weeklyPotAmount  Float    @default(15)
+  seasonPotAmount  Float    @default(150)
+  seasonEndsAtWeek Int      @default(18)
   structure        String   @default("winner_take_all")
   splitFirst       Float    @default(1.0)
   splitSecond      Float    @default(0)
