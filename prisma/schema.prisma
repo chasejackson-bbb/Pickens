@@ -1,0 +1,216 @@
+// Pickens Pick'em data model.
+// SQLite by default (fine for 3 users); point DATABASE_URL at Postgres for a hosted deployment.
+// SQLite has no native enum type, so "enum-like" string fields are documented inline and
+// validated in application code (see lib/constants.ts) instead of enforced by the schema.
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- Roster -----------------------------------------------------------------
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  picks             Pick[]
+  tiebreakerGuesses TiebreakerGuess[]
+  payouts           Payout[]
+}
+
+// --- Season / Week structure --------------------------------------------------
+
+model Season {
+  id        String   @id @default(cuid())
+  year      Int      @unique
+  createdAt DateTime @default(now())
+
+  weeks         Week[]
+  payouts       Payout[]
+  payoutConfigs PayoutConfig[]
+}
+
+// status: "upcoming" | "drafting" | "in_progress" | "final"
+// mechanic: "ats" (standard against-the-spread pick'em) | "bracket_wins" (legacy 2018
+//   postseason import, where the sheet scored 1 point per playoff game the picked team won,
+//   not cover/no-cover -- kept distinct so it never gets mixed into ATS scoring math)
+model Week {
+  id             String   @id @default(cuid())
+  seasonId       String
+  weekNumber     Int
+  // "" for a normal numbered week; a non-empty label (e.g. "Postseason") distinguishes special
+  // weeks. Deliberately not nullable: SQLite's unique index treats every NULL as distinct, which
+  // would silently let duplicate (seasonId, weekNumber) rows through -- "" makes the
+  // @@unique below actually unique.
+  label          String   @default("")
+  isPostseason   Boolean  @default(false)
+  status         String   @default("upcoming")
+  mechanic       String   @default("ats")
+  picksPerPlayer Int? // snapshot of the computed picks-per-player rule for this week
+  isHistorical   Boolean  @default(false) // imported from the legacy spreadsheet
+  createdAt      DateTime @default(now())
+
+  season            Season             @relation(fields: [seasonId], references: [id])
+  games             Game[]
+  picks             Pick[]
+  tiebreakerGuesses TiebreakerGuess[]
+  tiebreakerConfig  TiebreakerConfig?
+  draftOrder        DraftOrder?
+  payouts           Payout[]
+
+  @@unique([seasonId, weekNumber, label])
+  @@index([seasonId])
+}
+
+// status: "scheduled" | "in_progress" | "final"
+// homeSpread is the current/live spread from the home team's perspective (negative = home favored).
+// awaySpread is always -homeSpread; stored implicitly, not duplicated.
+model Game {
+  id              String    @id @default(cuid())
+  weekId          String
+  homeTeam        String
+  awayTeam        String
+  kickoff         DateTime?
+  homeSpread      Float?
+  finalHomeScore  Int?
+  finalAwayScore  Int?
+  status          String    @default("scheduled")
+  oddsApiEventId  String?   @unique
+  lastSyncedAt    DateTime?
+  manualOverride  Boolean   @default(false)
+
+  week  Week   @relation(fields: [weekId], references: [id])
+  picks Pick[]
+
+  @@index([weekId])
+}
+
+// result: "covered" | "push" | "no_cover" | "pending"
+// gameId is nullable because legacy imported picks don't have a resolvable Game record
+// (the source spreadsheet never recorded the opponent) -- only the team and the result.
+// lockedSpread is null for nearly all imported historical picks (the sheet only stored the
+// final result, not the spread used) except the one legacy playoff sheet that recorded real
+// per-game spreads.
+model Pick {
+  id                 String    @id @default(cuid())
+  weekId             String
+  playerId           String
+  gameId             String?
+  teamPicked         String
+  lockedSpread       Float?
+  draftOrderPosition Int?
+  pickedAt           DateTime?
+  result             String    @default("pending")
+  points             Float?
+  manualOverride     Boolean   @default(false)
+  isHistoricalImport Boolean   @default(false)
+  sourceRound        String? // e.g. "Wildcard" / "Division" for legacy postseason imports
+  notes              String?
+  createdAt          DateTime  @default(now())
+
+  week   Week    @relation(fields: [weekId], references: [id])
+  player Player  @relation(fields: [playerId], references: [id])
+  game   Game?   @relation(fields: [gameId], references: [id])
+
+  @@index([weekId])
+  @@index([playerId])
+  @@index([gameId])
+}
+
+// Hidden until any player reveals it (only relevant for tiebreaking a tied weekly total).
+model TiebreakerGuess {
+  id         String   @id @default(cuid())
+  weekId     String
+  playerId   String
+  guessValue Float?
+  revealed   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  week   Week   @relation(fields: [weekId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([weekId, playerId])
+}
+
+model TiebreakerConfig {
+  weekId      String  @id
+  playerName  String  @default("George Pickens")
+  statType    String  @default("receiving_yards")
+  actualValue Float?
+
+  week Week @relation(fields: [weekId], references: [id])
+}
+
+// order: JSON-encoded array of player IDs in round-1 (pre-snake) order.
+model DraftOrder {
+  id                 String    @id @default(cuid())
+  weekId             String    @unique
+  order              String // JSON array of player IDs
+  manuallyOverridden Boolean   @default(false)
+  randomizedAt       DateTime?
+
+  week Week @relation(fields: [weekId], references: [id])
+}
+
+// --- Payouts ------------------------------------------------------------------
+
+// scope: "week" | "season"
+model Payout {
+  id          String   @id @default(cuid())
+  scope       String
+  weekId      String?
+  seasonId    String?
+  playerId    String
+  amountOwed  Float    @default(0)
+  amountWon   Float    @default(0)
+  settled     Boolean  @default(false)
+  note        String?
+  createdAt   DateTime @default(now())
+
+  week   Week?   @relation(fields: [weekId], references: [id])
+  season Season? @relation(fields: [seasonId], references: [id])
+  player Player  @relation(fields: [playerId], references: [id])
+
+  @@index([weekId])
+  @@index([seasonId])
+  @@index([playerId])
+}
+
+// structure: "winner_take_all" | "split_123"
+// splitFirst/Second/Third are fractions of the pot (only used when structure = split_123).
+// Defaults are seeded from the one piece of dollar evidence in the legacy spreadsheet
+// (2019 sheets recorded a $20 weekly pot, winner-take-all, split evenly on ties) --
+// confirm actual amounts with the group and edit here.
+model PayoutConfig {
+  id               String   @id @default(cuid())
+  seasonId         String?
+  weeklyPotAmount  Float    @default(20)
+  seasonPotAmount  Float    @default(0)
+  structure        String   @default("winner_take_all")
+  splitFirst       Float    @default(1.0)
+  splitSecond      Float    @default(0)
+  splitThird       Float    @default(0)
+  notes            String?
+  updatedAt        DateTime @updatedAt
+
+  season Season? @relation(fields: [seasonId], references: [id])
+}
+
+// Normalization table mapping every informal/historical team name found in the legacy
+// spreadsheet (and any nickname a user types in manually) to one of the 32 canonical NFL
+// team names. Seeded from lib/teams.ts; editable at runtime without a code deploy.
+model TeamAlias {
+  id        String @id @default(cuid())
+  alias     String @unique
+  canonical String
+
+  @@index([canonical])
+}
