@@ -11,7 +11,7 @@ This replaces a manually-maintained Google Sheet used since 2019. That sheet's f
 ## Stack
 
 - **Next.js 14** (App Router) + TypeScript
-- **Prisma** + **SQLite** (swap `DATABASE_URL` for a Postgres URL to run hosted instead)
+- **Prisma** + **Postgres** (e.g. [Neon](https://neon.tech) -- free tier is plenty for 3 users)
 - **The Odds API** for weekly spreads and final scores
 - No auth: one shared link, players pick their own name from a dropdown before acting (see
   [No login](#no-login-by-design))
@@ -20,12 +20,18 @@ This replaces a manually-maintained Google Sheet used since 2019. That sheet's f
 
 ```bash
 npm install
-cp .env.example .env      # then fill in ODDS_API_KEY (see below)
-npm run db:migrate        # creates prisma/dev.db and applies the schema
+cp .env.example .env      # then fill in DATABASE_URL and ODDS_API_KEY (see below)
+npm run db:migrate        # applies the schema to your Postgres database
 npm run db:seed           # seeds Blake/Jay/Chase, the team-alias table, and default payout config
 npm run import:legacy     # imports the full legacy spreadsheet history (idempotent, re-runnable)
 npm run dev
 ```
+
+`DATABASE_URL` needs a real Postgres connection string -- there's no local-file fallback,
+since the production deployment needs Postgres anyway (a serverless platform's filesystem is
+ephemeral, so SQLite doesn't survive it there). The easiest way to get one for local dev too:
+create a free [Neon](https://neon.tech) project and use its connection string here as well (or
+a Neon branch, if you want dev/prod kept separate).
 
 Then open http://localhost:3000.
 
@@ -51,15 +57,23 @@ real API.
 
 ### Deployment
 
-No accounts/auth means hosting can be as light as you want:
+No accounts/auth means hosting can be as light as you want. This repo deploys cleanly to
+**Vercel** (the Next.js App Router's native platform) with a **Neon** Postgres database:
 
-- **Vercel/Netlify + hosted SQLite** (e.g. Turso) or a small **Postgres** (Neon, Supabase,
-  Railway) -- just point `DATABASE_URL` at it and run `npm run db:deploy` (uses
-  `prisma migrate deploy`, safe for production) instead of `db:migrate`.
-- Set `ODDS_API_KEY` as a secret/environment variable on whatever platform you use -- never
-  hardcode it.
-- The draft board polls the server every 4 seconds (`useSWR` with `refreshInterval`) rather
-  than using WebSockets/SSE, which is plenty for 3 people and needs no extra infrastructure.
+1. Create a Neon project, grab its connection string, set it as `DATABASE_URL` in Vercel's
+   project environment variables.
+2. Set `ODDS_API_KEY` there too -- never hardcode it.
+3. Import the GitHub repo into Vercel; it auto-detects Next.js, no config needed.
+4. Once the database exists, run `npm run db:deploy` (uses `prisma migrate deploy`, safe for
+   production, unlike `db:migrate`) followed by `db:seed` and `import:legacy` against that
+   `DATABASE_URL` -- from your machine, or anywhere with network access to the database, one
+   time before (or right after) the first deploy.
+
+Other Postgres hosts (Supabase, Railway) or other Next.js-friendly platforms (Netlify) work the
+same way -- nothing here is Vercel/Neon-specific beyond convenience.
+
+The draft board polls the server every 4 seconds (`useSWR` with `refreshInterval`) rather than
+using WebSockets/SSE, which is plenty for 3 people and needs no extra infrastructure.
 
 ## No login, by design
 

@@ -1,5 +1,6 @@
-// String-union "enums" -- SQLite has no native enum type, so these are enforced in code
-// (zod schemas at the API boundary) rather than by the database.
+// String-union "enums," enforced in code (zod schemas at the API boundary) rather than as
+// native Postgres enums -- keeps the schema portable if this ever needs to run against
+// something else (e.g. SQLite for local dev) without a migration rewrite.
 
 export const WEEK_STATUSES = ["upcoming", "drafting", "in_progress", "final"] as const;
 export type WeekStatus = (typeof WEEK_STATUSES)[number];
