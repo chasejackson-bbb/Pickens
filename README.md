@@ -60,14 +60,21 @@ real API.
 No accounts/auth means hosting can be as light as you want. This repo deploys cleanly to
 **Vercel** (the Next.js App Router's native platform) with a **Neon** Postgres database:
 
-1. Create a Neon project, grab its connection string, set it as `DATABASE_URL` in Vercel's
-   project environment variables.
+1. Create a Neon project, grab its (pooled) connection string, set it as `DATABASE_URL` in
+   Vercel's project environment variables.
 2. Set `ODDS_API_KEY` there too -- never hardcode it.
-3. Import the GitHub repo into Vercel; it auto-detects Next.js, no config needed.
-4. Once the database exists, run `npm run db:deploy` (uses `prisma migrate deploy`, safe for
-   production, unlike `db:migrate`) followed by `db:seed` and `import:legacy` against that
-   `DATABASE_URL` -- from your machine, or anywhere with network access to the database, one
-   time before (or right after) the first deploy.
+3. Import the GitHub repo into Vercel; it auto-detects Next.js, no config needed. The build
+   runs `prisma migrate deploy` automatically before `next build` (see `vercel-build` in
+   `package.json`), so the schema is applied on every deploy without a manual step.
+4. **One-time only**, after the first deploy succeeds: seed the roster/team-aliases and run the
+   historical import. Two ways to do this:
+   - **From anywhere with direct network access to the database** (your machine, a CI runner):
+     `npm run db:seed && npm run import:legacy` with `DATABASE_URL` set in your shell.
+   - **Through the deployed app itself** (useful if you're setting this up from an environment
+     that can reach the app over HTTPS but not the database directly -- e.g. a sandboxed agent):
+     set `ADMIN_SETUP_TOKEN` in Vercel's env vars to a long random string, then
+     `curl -X POST https://<your-app>.vercel.app/api/admin/setup -H "x-setup-token: <that string>"`.
+     Both paths run the exact same code (`lib/setup.ts`) and are safe to re-run.
 
 Other Postgres hosts (Supabase, Railway) or other Next.js-friendly platforms (Netlify) work the
 same way -- nothing here is Vercel/Neon-specific beyond convenience.
