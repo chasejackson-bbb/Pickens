@@ -82,6 +82,13 @@ export interface WeekWindow {
   to: string; // ISO 8601
 }
 
+// The Odds API requires exactly YYYY-MM-DDTHH:MM:SSZ for commenceTimeFrom/To -- no fractional
+// seconds -- and rejects the .SSSZ milliseconds that Date#toISOString() (and therefore any
+// ordinary ISO string built from a JS Date) always includes.
+function toOddsApiTimestamp(iso: string): string {
+  return new Date(iso).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
 /**
  * Pull spreads for games kicking off within [window.from, window.to]. A window is required --
  * The Odds API's /odds endpoint has no "week number" concept, it just returns every game with
@@ -98,8 +105,8 @@ export async function fetchWeekSpreads(window: WeekWindow): Promise<NormalizedGa
     markets: "spreads",
     oddsFormat: "american",
     dateFormat: "iso",
-    commenceTimeFrom: window.from,
-    commenceTimeTo: window.to,
+    commenceTimeFrom: toOddsApiTimestamp(window.from),
+    commenceTimeTo: toOddsApiTimestamp(window.to),
   });
   const url = `${BASE_URL}/odds?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store" });
