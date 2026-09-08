@@ -57,6 +57,12 @@ model Week {
   status         String   @default("upcoming")
   mechanic       String   @default("ats")
   picksPerPlayer Int? // snapshot of the computed picks-per-player rule for this week
+  // Kickoff window used to filter The Odds API's results down to just this week's slate --
+  // that API has no native "week number" concept, it just returns every game with a posted
+  // line (often 1-2 weeks' worth at once), so without a window a sync pulls in extra games
+  // from adjacent weeks. Set once (with sensible defaults) before the first "Sync odds".
+  windowStart    DateTime?
+  windowEnd      DateTime?
   isHistorical   Boolean  @default(false) // imported from the legacy spreadsheet
   createdAt      DateTime @default(now())
 

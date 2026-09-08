@@ -77,10 +77,31 @@ function averageHomeSpread(event: OddsApiEvent): number | null {
   return Math.round(avg * 2) / 2; // snap to nearest half-point, matching standard spread ticks
 }
 
-export async function fetchWeekSpreads(): Promise<NormalizedGame[]> {
-  if (process.env.USE_MOCK_ODDS === "1") return mockSpreads();
+export interface WeekWindow {
+  from: string; // ISO 8601
+  to: string; // ISO 8601
+}
+
+/**
+ * Pull spreads for games kicking off within [window.from, window.to]. A window is required --
+ * The Odds API's /odds endpoint has no "week number" concept, it just returns every game with
+ * a posted line (often more than one week's worth at once), so without a kickoff window a sync
+ * pulls in extra games from adjacent weeks. The Odds API supports this natively via
+ * commenceTimeFrom/commenceTimeTo query params.
+ */
+export async function fetchWeekSpreads(window: WeekWindow): Promise<NormalizedGame[]> {
+  if (process.env.USE_MOCK_ODDS === "1") return mockSpreads(window);
   const key = requireApiKey();
-  const url = `${BASE_URL}/odds?apiKey=${key}&regions=us&markets=spreads&oddsFormat=american&dateFormat=iso`;
+  const params = new URLSearchParams({
+    apiKey: key,
+    regions: "us",
+    markets: "spreads",
+    oddsFormat: "american",
+    dateFormat: "iso",
+    commenceTimeFrom: window.from,
+    commenceTimeTo: window.to,
+  });
+  const url = `${BASE_URL}/odds?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`The Odds API request failed (${res.status}): ${await res.text()}`);
@@ -124,8 +145,13 @@ export async function fetchScores(daysFrom = 3): Promise<NormalizedScore[]> {
 // Lets the whole draft/scoring flow be exercised end-to-end without a live API key.
 // Enable with USE_MOCK_ODDS=1.
 
-function mockSpreads(): NormalizedGame[] {
-  const now = Date.now();
+function mockSpreads(window?: WeekWindow): NormalizedGame[] {
+  // Anchor kickoffs to the requested window (not real "now") so a mock sync actually returns
+  // games for whatever week is being tested. Event IDs stay simple/stable ("mock-0".."mock-5")
+  // rather than window-derived, so mockScores() (which has no window to work from -- it mimics
+  // the real API's "all recent scores" response) still matches them up correctly; this is a
+  // local demo fixture, not production data, so reuse across separate test weeks is harmless.
+  const anchor = window ? new Date(window.from).getTime() : Date.now();
   const pairs: Array<[string, string, number]> = [
     ["Kansas City Chiefs", "Baltimore Ravens", -2.5],
     ["Philadelphia Eagles", "Dallas Cowboys", -3],
@@ -134,13 +160,20 @@ function mockSpreads(): NormalizedGame[] {
     ["Detroit Lions", "Green Bay Packers", -1.5],
     ["New York Jets", "New England Patriots", -3.5],
   ];
-  return pairs.map(([home, away, homeSpread], i) => ({
+  const games = pairs.map(([home, away, homeSpread], i) => ({
     oddsApiEventId: `mock-${i}`,
     homeTeam: home,
     awayTeam: away,
-    kickoff: new Date(now + (i + 1) * 6 * 60 * 60 * 1000).toISOString(),
+    kickoff: new Date(anchor + (i + 1) * 6 * 60 * 60 * 1000).toISOString(),
     homeSpread,
   }));
+  if (!window) return games;
+  const from = new Date(window.from).getTime();
+  const to = new Date(window.to).getTime();
+  return games.filter((g) => {
+    const t = new Date(g.kickoff).getTime();
+    return t >= from && t <= to;
+  });
 }
 
 function mockScores(): NormalizedScore[] {

@@ -29,9 +29,14 @@ export function WeekBoard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guessValue, setGuessValue] = useState("");
+  const [windowFrom, setWindowFrom] = useState<string | null>(null);
+  const [windowTo, setWindowTo] = useState<string | null>(null);
 
   if (!data) return <p>Loading…</p>;
   const { week, totals, winner } = data;
+  const defaultWindow = getDefaultWeekWindow();
+  const effectiveFrom = windowFrom ?? toLocalInputValue(week.windowStart) ?? defaultWindow.from;
+  const effectiveTo = windowTo ?? toLocalInputValue(week.windowEnd) ?? defaultWindow.to;
   const playerById = new Map(players.map((p) => [p.id, p.name]));
 
   const weekTeams = [...new Set(week.games.flatMap((g: any) => [g.homeTeam, g.awayTeam]))] as string[];
@@ -104,8 +109,36 @@ export function WeekBoard({
               ? "No games synced yet. Pull this week's spreads from The Odds API once lines are posted (usually 5-7 days before kickoff)."
               : `${week.games.length} games synced, ${weekTeams.length} teams in the pool (${byeTeams.length} on bye).`}
           </p>
+          <p className="muted" style={{ fontSize: "0.85rem" }}>
+            The Odds API doesn&apos;t know NFL week numbers -- it just returns every game with a
+            posted line, which is often more than one week&apos;s worth. Set this week&apos;s
+            kickoff window (defaults to the upcoming Thu-Tue) so the sync only pulls in{" "}
+            <em>this</em> week&apos;s games.
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center", marginBottom: "0.75rem" }}>
+            <label style={{ fontSize: "0.85rem" }}>
+              From
+              <br />
+              <input type="datetime-local" value={effectiveFrom} onChange={(e) => setWindowFrom(e.target.value)} />
+            </label>
+            <label style={{ fontSize: "0.85rem" }}>
+              To
+              <br />
+              <input type="datetime-local" value={effectiveTo} onChange={(e) => setWindowTo(e.target.value)} />
+            </label>
+          </div>
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button disabled={busy} onClick={() => run(() => postJson(`/api/weeks/${weekId}/sync-odds`, {}))}>
+            <button
+              disabled={busy}
+              onClick={() =>
+                run(() =>
+                  postJson(`/api/weeks/${weekId}/sync-odds`, {
+                    from: new Date(effectiveFrom).toISOString(),
+                    to: new Date(effectiveTo).toISOString(),
+                  })
+                )
+              }
+            >
               Sync odds
             </button>
             {week.games.length > 0 && (
@@ -343,6 +376,29 @@ function getByeTeams(playingTeams: string[]) {
   if (playingTeams.length === 0) return [];
   const playing = new Set(playingTeams);
   return NFL_TEAMS.filter((t) => !playing.has(t));
+}
+
+// "YYYY-MM-DDTHH:mm" in local time, the format <input type="datetime-local"> needs.
+function toLocalInputValue(date: string | Date | null | undefined): string | null {
+  if (!date) return null;
+  const d = new Date(date);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Best-guess NFL week window: the upcoming Thursday through the following Tuesday, covering a
+// standard Thu/Sun/Mon slate with room for MNF running past midnight. Just a starting point --
+// the group adjusts it to match the actual week before syncing.
+function getDefaultWeekWindow(): { from: string; to: string } {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sun, 4 = Thu
+  const daysUntilThursday = (4 - day + 7) % 7;
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() + daysUntilThursday);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return { from: toLocalInputValue(start)!, to: toLocalInputValue(end)! };
 }
 
 function formatSpread(spread: number | null) {
