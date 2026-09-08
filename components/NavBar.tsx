@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { PickensHelmet } from "./PickensHelmet";
 
 export function NavBar() {
   return (
     <nav className="nav">
-      <span className="brand">🏈 Pickens Pick&apos;em</span>
+      <Link href="/" className="brand">
+        <PickensHelmet size={40} />
+        <span className="brand-word">Pickens</span>
+      </Link>
       <Link href="/">Standings</Link>
       <Link href="/weeks">Weeks</Link>
       <Link href="/history">All-Time</Link>
