@@ -149,31 +149,28 @@ input {
   font-size: 0.9rem;
 }
 
-.team-pool {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+.matchup-grid td {
+  vertical-align: middle;
 }
 
-.team-chip {
-  border: 1px solid var(--border);
+.matchup-spread {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.matchup-team-btn {
+  width: 100%;
+  text-align: left;
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.9rem;
 }
 
-.team-chip.available {
-  cursor: pointer;
-}
-
-.team-chip.available:hover {
-  border-color: var(--accent);
-}
-
-.team-chip.picked {
+.matchup-team-btn.picked {
   opacity: 0.35;
   text-decoration: line-through;
+  cursor: default;
 }
 
 .muted {

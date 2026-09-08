@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { fetcher, postJson } from "@/lib/fetcher";
 import { getCurrentTurn, availableTeams } from "@/lib/draft";
@@ -23,6 +24,7 @@ export function WeekBoard({
     fallbackData: initial,
     refreshInterval: 4000,
   });
+  const router = useRouter();
   const { playerId } = useActivePlayer();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +69,25 @@ export function WeekBoard({
           </h1>
           <span className="badge pending">{week.status}</span>
         </div>
-        <PlayerSelector players={players} />
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <PlayerSelector players={players} />
+          {week.status !== "final" && (
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => {
+                if (!confirm("Delete this week and all its picks/games? This can't be undone."))
+                  return;
+                run(async () => {
+                  await postJson(`/api/weeks/${weekId}`, {}, "DELETE");
+                  router.push("/weeks");
+                });
+              }}
+            >
+              Delete week
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -111,24 +131,45 @@ export function WeekBoard({
             <div className="turn-banner">Draft complete — waiting for games to kick off / finish.</div>
           )}
           <div className="card">
-            <h3 style={{ marginTop: 0 }}>Available teams ({pool.length})</h3>
-            <div className="team-pool">
-              {pool.map((team) => {
-                const canPick = !!turn && turn.playerId === playerId;
-                return (
-                  <button
-                    key={team}
-                    disabled={busy || !canPick}
-                    className={canPick ? "" : "secondary"}
-                    onClick={() =>
-                      run(() => postJson(`/api/weeks/${weekId}/pick`, { playerId, team }))
-                    }
-                  >
-                    {team}
-                  </button>
-                );
-              })}
-            </div>
+            <h3 style={{ marginTop: 0 }}>
+              Matchups ({week.games.length}) — {pool.length} team{pool.length === 1 ? "" : "s"} left
+            </h3>
+            <table className="matchup-grid">
+              <thead>
+                <tr>
+                  <th>Away Team</th>
+                  <th>Spread</th>
+                  <th>Home Team</th>
+                  <th>Spread</th>
+                </tr>
+              </thead>
+              <tbody>
+                {week.games.map((g: any) => {
+                  const canPick = !!turn && turn.playerId === playerId && !busy;
+                  const awaySpread = g.homeSpread !== null ? -g.homeSpread : null;
+                  const awayPicked = pickedTeams.includes(g.awayTeam);
+                  const homePicked = pickedTeams.includes(g.homeTeam);
+                  return (
+                    <tr key={g.id}>
+                      <MatchupTeamCell
+                        team={g.awayTeam}
+                        picked={awayPicked}
+                        canPick={canPick}
+                        onPick={() => run(() => postJson(`/api/weeks/${weekId}/pick`, { playerId, team: g.awayTeam }))}
+                      />
+                      <td className="matchup-spread">{formatSpread(awaySpread)}</td>
+                      <MatchupTeamCell
+                        team={g.homeTeam}
+                        picked={homePicked}
+                        canPick={canPick}
+                        onPick={() => run(() => postJson(`/api/weeks/${weekId}/pick`, { playerId, team: g.homeTeam }))}
+                      />
+                      <td className="matchup-spread">{formatSpread(g.homeSpread)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
             {byeTeams.length > 0 && (
               <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
                 Bye this week: {byeTeams.join(", ")}
@@ -302,4 +343,33 @@ function getByeTeams(playingTeams: string[]) {
   if (playingTeams.length === 0) return [];
   const playing = new Set(playingTeams);
   return NFL_TEAMS.filter((t) => !playing.has(t));
+}
+
+function formatSpread(spread: number | null) {
+  if (spread === null) return "—";
+  return spread > 0 ? `+${spread}` : `${spread}`;
+}
+
+function MatchupTeamCell({
+  team,
+  picked,
+  canPick,
+  onPick,
+}: {
+  team: string;
+  picked: boolean;
+  canPick: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <td>
+      <button
+        disabled={picked || !canPick}
+        onClick={onPick}
+        className={`matchup-team-btn ${picked ? "picked" : ""} ${canPick && !picked ? "" : "secondary"}`}
+      >
+        {team}
+      </button>
+    </td>
+  );
 }
