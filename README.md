@@ -137,6 +137,17 @@ final score, or `POST /api/picks/:id/override` for a bad pick result) is always 
 a data-source error, and once a pick or game is manually overridden, future auto-syncs leave it
 alone.
 
+**Sync scores** on a week's page is the primary way this happens -- click it anytime, as many
+times as you like, as games finish throughout the week. There's also a scheduled safety net
+(`vercel.json` + `app/api/cron/sync-scores`) that runs the same sync automatically for every
+`in_progress` week at midnight PST (a fixed UTC-8 offset, not Pacific *Daylight* Time, so the
+schedule doesn't shift when the season crosses the DST change in November) after Thursday,
+Sunday, and Monday games -- in case nobody gets around to clicking the button. Requires
+`CRON_SECRET` set in Vercel's environment variables (Vercel automatically sends it back as an
+`Authorization` header on cron requests); the endpoint refuses to run without it. Note: Vercel's
+Hobby plan has historically limited cron jobs in ways that can affect timing/frequency -- if the
+scheduled runs don't seem to be firing, check the Cron Jobs tab in the Vercel dashboard.
+
 ## Payout structure
 
 Confirmed with the group:
