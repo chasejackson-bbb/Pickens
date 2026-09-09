@@ -259,42 +259,60 @@ export function WeekBoard({
         </div>
       )}
 
-      <div className="card">
+      <div>
         <h3 style={{ marginTop: 0 }}>Picks</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Player</th>
-              <th>Team</th>
-              <th>Locked spread</th>
-              <th>Result</th>
-              <th>Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            {week.picks.map((p: any) => (
-              <tr key={p.id}>
-                <td>{p.draftOrderPosition ?? "—"}</td>
-                <td>{p.player.name}</td>
-                <td>{p.teamPicked}</td>
-                <td>{p.lockedSpread ?? "—"}</td>
-                <td>
-                  <span className={`badge ${p.result}`}>{p.result.replace("_", " ")}</span>
-                  {p.manualOverride && <span className="muted"> (manual)</span>}
-                </td>
-                <td>{p.points ?? "—"}</td>
-              </tr>
-            ))}
-            {week.picks.length === 0 && (
-              <tr>
-                <td colSpan={6} className="muted">
-                  No picks yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div className="player-picks-grid">
+          {players.map((player) => {
+            const picks = week.picks
+              .filter((p: any) => p.playerId === player.id)
+              .slice()
+              .sort((a: any, b: any) => (a.draftOrderPosition ?? 0) - (b.draftOrderPosition ?? 0));
+            const total = picks.reduce((sum: number, p: any) => sum + (p.points ?? 0), 0);
+            const color = playerColor(player.name);
+            const isWinner = winner.winnerIds.includes(player.id);
+            return (
+              <div key={player.id} className="player-picks-card">
+                <div className="player-picks-header" style={{ background: color.fill, color: color.ink }}>
+                  <span className="player-picks-name">
+                    {player.name}
+                    {isWinner && " 🏆"}
+                  </span>
+                  <span className="player-picks-total">{total}</span>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Team</th>
+                      <th>Spread</th>
+                      <th>Result</th>
+                      <th>Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {picks.map((p: any) => (
+                      <tr key={p.id}>
+                        <td>{p.teamPicked}</td>
+                        <td>{p.lockedSpread ?? "—"}</td>
+                        <td>
+                          <span className={`badge ${p.result}`}>{p.result.replace("_", " ")}</span>
+                          {p.manualOverride && <span className="muted"> (manual)</span>}
+                        </td>
+                        <td>{p.points ?? "—"}</td>
+                      </tr>
+                    ))}
+                    {picks.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="muted">
+                          No picks yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div className="card">
