@@ -275,3 +275,47 @@ input:focus-visible {
   font-weight: 500;
   font-size: 1.4rem;
 }
+
+.player-picks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.player-picks-card {
+  background: var(--bg-elev);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+/* Header fill is the one place a player's color is allowed to read as a solid block, since it's
+   the label for their own section -- consistent with the brand sheet's "fill behind their own
+   text" rule. */
+.player-picks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.7rem 1rem;
+}
+
+.player-picks-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.player-picks-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.player-picks-card table {
+  margin: 0;
+}
+
+.player-picks-card th,
+.player-picks-card td {
+  padding: 0.4rem 0.75rem;
+}
