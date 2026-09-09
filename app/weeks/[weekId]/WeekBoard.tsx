@@ -8,6 +8,7 @@ import { getCurrentTurn, availableTeams } from "@/lib/draft";
 import { NFL_TEAMS } from "@/lib/teams";
 import { PlayerSelector } from "@/components/PlayerSelector";
 import { useActivePlayer } from "@/lib/useActivePlayer";
+import { playerColor } from "@/lib/playerColors";
 
 type WeekResult = any; // shape mirrors lib/queries.ts#getWeekResult; kept loose to avoid duplicating server types on the client
 
@@ -41,6 +42,9 @@ export function WeekBoard({
 
   const weekTeams = [...new Set(week.games.flatMap((g: any) => [g.homeTeam, g.awayTeam]))] as string[];
   const pickedTeams = week.picks.map((p: any) => p.teamPicked);
+  const pickerNameByTeam = new Map<string, string>(
+    week.picks.map((p: any) => [p.teamPicked as string, p.player.name as string])
+  );
   const pool = availableTeams(weekTeams, pickedTeams);
   const byeTeams = getByeTeams(weekTeams);
 
@@ -158,10 +162,16 @@ export function WeekBoard({
         <>
           {turn ? (
             <div className="turn-banner">
-              Pick {turn.overallPickNumber} (Round {turn.round}) — {playerById.get(turn.playerId) ?? "?"}&apos;s turn
+              <div className="kicker">
+                Pick {turn.overallPickNumber} · Round {turn.round}
+              </div>
+              <div className="headline">{playerById.get(turn.playerId) ?? "?"}&apos;s turn</div>
             </div>
           ) : (
-            <div className="turn-banner">Draft complete — waiting for games to kick off / finish.</div>
+            <div className="turn-banner">
+              <div className="kicker">Draft complete</div>
+              <div className="headline">Waiting for games to kick off / finish</div>
+            </div>
           )}
           <div className="card">
             <h3 style={{ marginTop: 0 }}>
@@ -180,20 +190,20 @@ export function WeekBoard({
                 {week.games.map((g: any) => {
                   const canPick = !!turn && turn.playerId === playerId && !busy;
                   const awaySpread = g.homeSpread !== null ? -g.homeSpread : null;
-                  const awayPicked = pickedTeams.includes(g.awayTeam);
-                  const homePicked = pickedTeams.includes(g.homeTeam);
+                  const awayPicker = pickerNameByTeam.get(g.awayTeam);
+                  const homePicker = pickerNameByTeam.get(g.homeTeam);
                   return (
                     <tr key={g.id}>
                       <MatchupTeamCell
                         team={g.awayTeam}
-                        picked={awayPicked}
+                        pickedBy={awayPicker}
                         canPick={canPick}
                         onPick={() => run(() => postJson(`/api/weeks/${weekId}/pick`, { playerId, team: g.awayTeam }))}
                       />
                       <td className="matchup-spread">{formatSpread(awaySpread)}</td>
                       <MatchupTeamCell
                         team={g.homeTeam}
-                        picked={homePicked}
+                        pickedBy={homePicker}
                         canPick={canPick}
                         onPick={() => run(() => postJson(`/api/weeks/${weekId}/pick`, { playerId, team: g.homeTeam }))}
                       />
@@ -408,23 +418,28 @@ function formatSpread(spread: number | null) {
 
 function MatchupTeamCell({
   team,
-  picked,
+  pickedBy,
   canPick,
   onPick,
 }: {
   team: string;
-  picked: boolean;
+  pickedBy: string | undefined;
   canPick: boolean;
   onPick: () => void;
 }) {
+  const picked = !!pickedBy;
+  const color = pickedBy ? playerColor(pickedBy) : null;
   return (
     <td>
       <button
         disabled={picked || !canPick}
         onClick={onPick}
         className={`matchup-team-btn ${picked ? "picked" : ""} ${canPick && !picked ? "" : "secondary"}`}
+        style={color ? { background: color.fill, color: color.ink } : undefined}
+        title={pickedBy ? `Picked by ${pickedBy}` : undefined}
       >
         {team}
+        {pickedBy && <span className="matchup-picker"> · {pickedBy}</span>}
       </button>
     </td>
   );
