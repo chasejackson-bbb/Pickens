@@ -247,7 +247,7 @@ export function WeekBoard({
                   <td>
                     {g.awayTeam} @ {g.homeTeam}
                   </td>
-                  <td>{g.homeSpread ?? "—"}</td>
+                  <td>{formatSpread(g.homeSpread)}</td>
                   <td>
                     {g.finalHomeScore !== null ? `${g.finalAwayScore} - ${g.finalHomeScore}` : "—"}
                   </td>
@@ -292,7 +292,7 @@ export function WeekBoard({
                     {picks.map((p: any) => (
                       <tr key={p.id}>
                         <td>{p.teamPicked}</td>
-                        <td>{p.lockedSpread ?? "—"}</td>
+                        <td>{formatSpread(p.lockedSpread)}</td>
                         <td>
                           <span className={`badge ${p.result}`}>{p.result.replace("_", " ")}</span>
                           {p.manualOverride && <span className="muted"> (manual)</span>}
