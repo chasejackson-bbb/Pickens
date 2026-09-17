@@ -10,6 +10,7 @@ export function NavBar() {
       </Link>
       <Link href="/">Standings</Link>
       <Link href="/weeks">Weeks</Link>
+      <Link href="/stats">Stats</Link>
       <Link href="/history">All-Time</Link>
       <Link href="/payouts">Payouts</Link>
       <Link href="/admin">Admin</Link>

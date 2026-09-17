@@ -319,3 +319,132 @@ input:focus-visible {
 .player-picks-card td {
   padding: 0.4rem 0.75rem;
 }
+
+/* --- Stats tab -------------------------------------------------------------------------- */
+
+.stats-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.stats-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.stats-filter-week-range {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.stats-filter-week-range input {
+  width: 4.5rem;
+}
+
+.stats-toggle-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.stat-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.85rem;
+}
+
+.stat-tile {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.stat-tile-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  margin-bottom: 0.3rem;
+}
+
+.stat-tile-value {
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-tile-sub {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 0.2rem;
+}
+
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.bar-chart-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 160px) 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.bar-chart-label {
+  color: color-mix(in srgb, var(--text) 85%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-chart-track {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 5px;
+  height: 12px;
+  overflow: hidden;
+}
+
+.bar-chart-fill {
+  height: 100%;
+  border-radius: 5px;
+}
+
+.bar-chart-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
+.line-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.stats-subgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.stats-section-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  margin: 1.5rem 0 0.75rem;
+}
+
+.stats-section-title:first-child {
+  margin-top: 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
