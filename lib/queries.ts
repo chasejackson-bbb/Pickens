@@ -170,6 +170,59 @@ export async function getAllTimeStats() {
   return players.map((p) => ({ player: p, ...stats.get(p.id)! }));
 }
 
+export interface WeeklyStandingRow {
+  weekId: string;
+  weekNumber: number;
+  label: string;
+  status: string;
+  isPostseason: boolean;
+  placements: Array<{ place: number; points: number; players: Array<{ id: string; name: string }> }>;
+}
+
+/**
+ * Per-week placements (1st/2nd/3rd, ties sharing a place) for every week in a season that has
+ * at least one pick -- shown on the standings page so the week's winner and score are visible
+ * without opening each week. Plain points-based ranking, same convention as getAllTimeStats's
+ * firsts/seconds/thirds counts -- deliberately not tiebreaker-aware: the tiebreaker only exists
+ * to pick a single winner for payouts, and may still be hidden/unrevealed for a given week.
+ */
+export async function getWeeklyStandings(seasonId: string): Promise<WeeklyStandingRow[]> {
+  const weeks = await prisma.week.findMany({
+    where: { seasonId },
+    orderBy: { weekNumber: "asc" },
+    include: { picks: { include: { player: true } } },
+  });
+
+  return weeks
+    .filter((w) => w.picks.length > 0)
+    .map((w) => {
+      const totals = new Map<string, { id: string; name: string; points: number }>();
+      for (const pick of w.picks) {
+        if (!totals.has(pick.playerId)) totals.set(pick.playerId, { id: pick.playerId, name: pick.player.name, points: 0 });
+        totals.get(pick.playerId)!.points += pick.points ?? 0;
+      }
+      const ranked = [...totals.values()].sort((a, b) => b.points - a.points);
+      const distinctPoints = [...new Set(ranked.map((r) => r.points))].sort((a, b) => b - a);
+
+      const byPlace = new Map<number, { place: number; points: number; players: Array<{ id: string; name: string }> }>();
+      for (const r of ranked) {
+        const place = distinctPoints.indexOf(r.points) + 1;
+        if (place > 3) continue;
+        if (!byPlace.has(place)) byPlace.set(place, { place, points: r.points, players: [] });
+        byPlace.get(place)!.players.push({ id: r.id, name: r.name });
+      }
+
+      return {
+        weekId: w.id,
+        weekNumber: w.weekNumber,
+        label: w.label,
+        status: w.status,
+        isPostseason: w.isPostseason,
+        placements: [...byPlace.values()].sort((a, b) => a.place - b.place),
+      };
+    });
+}
+
 /** Interesting stats: most/least picked teams per player (nice-to-have surfaced on the history page). */
 export async function getFavoriteTeams() {
   const picks = await prisma.pick.findMany({

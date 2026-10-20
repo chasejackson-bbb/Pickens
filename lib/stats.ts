@@ -1,6 +1,6 @@
-// Pure, client-safe computations over StatsPick[] for the Stats tab. No Prisma imports here --
-// this runs in the browser (see app/stats/StatsBoard.tsx) so filters recompute instantly
-// without a round trip.
+// Pure, client-safe computations over StatsPick[] / StatsGameSide[] for the Stats tab. No
+// Prisma imports here -- this runs in the browser (see app/stats/StatsBoard.tsx) so filters
+// recompute instantly without a round trip.
 import type { StatsPick } from "./statsData";
 
 export interface Tally {
@@ -10,20 +10,37 @@ export interface Tally {
   pending: number;
 }
 
+type Result = "covered" | "push" | "no_cover" | "pending";
+
+/**
+ * The fields the league-wide (section A) computations need -- satisfied by both StatsPick (a
+ * player's actual pick) and StatsGameSide (one team's side of a game, regardless of whether
+ * anyone picked it). Keeping these functions structural rather than tied to StatsPick is what
+ * lets the same cover-%/bucket/situational math run over "every game" instead of just "picks".
+ */
+interface SpreadRow {
+  teamPicked: string;
+  lockedSpread: number;
+  result: Result;
+  isHome: boolean;
+  weekNumber: number;
+  seasonYear: number;
+}
+
 export function emptyTally(): Tally {
   return { covered: 0, push: 0, noCover: 0, pending: 0 };
 }
 
-function addResult(t: Tally, result: StatsPick["result"]) {
+function addResult(t: Tally, result: Result) {
   if (result === "covered") t.covered += 1;
   else if (result === "push") t.push += 1;
   else if (result === "no_cover") t.noCover += 1;
   else t.pending += 1;
 }
 
-export function tally(picks: StatsPick[]): Tally {
+export function tally(rows: SpreadRow[]): Tally {
   const t = emptyTally();
-  for (const p of picks) addResult(t, p.result);
+  for (const r of rows) addResult(t, r.result);
   return t;
 }
 
@@ -57,12 +74,12 @@ export interface StatsFilters {
   weekMax: number | null;
 }
 
-export function applyScopeFilters(picks: StatsPick[], filters: StatsFilters): StatsPick[] {
-  return picks.filter((p) => {
-    if (!filters.seasonYears.includes(p.seasonYear)) return false;
-    if (filters.weekMin !== null && p.weekNumber < filters.weekMin) return false;
-    if (filters.weekMax !== null && p.weekNumber > filters.weekMax) return false;
-    if (filters.team && p.teamPicked !== filters.team) return false;
+export function applyScopeFilters<T extends SpreadRow>(rows: T[], filters: StatsFilters): T[] {
+  return rows.filter((r) => {
+    if (!filters.seasonYears.includes(r.seasonYear)) return false;
+    if (filters.weekMin !== null && r.weekNumber < filters.weekMin) return false;
+    if (filters.weekMax !== null && r.weekNumber > filters.weekMax) return false;
+    if (filters.team && r.teamPicked !== filters.team) return false;
     return true;
   });
 }
@@ -78,16 +95,16 @@ export type Situation = "home_favorite" | "home_underdog" | "away_favorite" | "a
 export const SITUATIONS: Situation[] = ["home_favorite", "home_underdog", "away_favorite", "away_underdog"];
 
 // A spread of exactly 0 ("pick'em") has no favorite -- vanishingly rare in practice, bucketed
-// with favorites here so every pick lands somewhere rather than needing a 5th category.
-function situationOf(p: StatsPick): Situation {
-  const favorite = p.lockedSpread <= 0;
-  if (p.isHome) return favorite ? "home_favorite" : "home_underdog";
+// with favorites here so every row lands somewhere rather than needing a 5th category.
+function situationOf(r: SpreadRow): Situation {
+  const favorite = r.lockedSpread <= 0;
+  if (r.isHome) return favorite ? "home_favorite" : "home_underdog";
   return favorite ? "away_favorite" : "away_underdog";
 }
 
-export function computeSituationalCoverage(picks: StatsPick[]): Record<Situation, Tally> {
+export function computeSituationalCoverage(rows: SpreadRow[]): Record<Situation, Tally> {
   const bySituation = Object.fromEntries(SITUATIONS.map((s) => [s, emptyTally()])) as Record<Situation, Tally>;
-  for (const p of picks) addResult(bySituation[situationOf(p)], p.result);
+  for (const r of rows) addResult(bySituation[situationOf(r)], r.result);
   return bySituation;
 }
 
@@ -100,16 +117,16 @@ export interface TeamCoverageRow {
   away: Tally;
 }
 
-/** One row per team that was actually picked in the filtered scope -- not every NFL team. */
-export function computeTeamCoverage(picks: StatsPick[]): TeamCoverageRow[] {
+/** One row per team that appears in the filtered scope -- not every NFL team. */
+export function computeTeamCoverage(rows: SpreadRow[]): TeamCoverageRow[] {
   const byTeam = new Map<string, TeamCoverageRow>();
-  for (const p of picks) {
-    if (!byTeam.has(p.teamPicked)) {
-      byTeam.set(p.teamPicked, { team: p.teamPicked, overall: emptyTally(), home: emptyTally(), away: emptyTally() });
+  for (const r of rows) {
+    if (!byTeam.has(r.teamPicked)) {
+      byTeam.set(r.teamPicked, { team: r.teamPicked, overall: emptyTally(), home: emptyTally(), away: emptyTally() });
     }
-    const row = byTeam.get(p.teamPicked)!;
-    addResult(row.overall, p.result);
-    addResult(p.isHome ? row.home : row.away, p.result);
+    const row = byTeam.get(r.teamPicked)!;
+    addResult(row.overall, r.result);
+    addResult(r.isHome ? row.home : row.away, r.result);
   }
   return [...byTeam.values()].sort((a, b) => (coverPct(b.overall) ?? -1) - (coverPct(a.overall) ?? -1));
 }
@@ -138,19 +155,19 @@ export interface SpreadBucketRow {
   underdog: Tally;
 }
 
-/** Pick'em picks (spread 0) fall outside every bucket -- there's no "size" to bucket. */
-export function computeSpreadBucketCoverage(picks: StatsPick[]): SpreadBucketRow[] {
-  const rows = new Map<string, SpreadBucketRow>(
+/** Pick'em rows (spread 0) fall outside every bucket -- there's no "size" to bucket. */
+export function computeSpreadBucketCoverage(rows: SpreadRow[]): SpreadBucketRow[] {
+  const byBucket = new Map<string, SpreadBucketRow>(
     SPREAD_BUCKETS.map((b) => [b.label, { label: b.label, favorite: emptyTally(), underdog: emptyTally() }])
   );
-  for (const p of picks) {
-    const bucket = bucketFor(Math.abs(p.lockedSpread));
+  for (const r of rows) {
+    const bucket = bucketFor(Math.abs(r.lockedSpread));
     if (!bucket) continue;
-    const row = rows.get(bucket.label)!;
-    if (p.lockedSpread < 0) addResult(row.favorite, p.result);
-    else if (p.lockedSpread > 0) addResult(row.underdog, p.result);
+    const row = byBucket.get(bucket.label)!;
+    if (r.lockedSpread < 0) addResult(row.favorite, r.result);
+    else if (r.lockedSpread > 0) addResult(row.underdog, r.result);
   }
-  return SPREAD_BUCKETS.map((b) => rows.get(b.label)!);
+  return SPREAD_BUCKETS.map((b) => byBucket.get(b.label)!);
 }
 
 // --- B1: cover % by draft position ------------------------------------------------------
