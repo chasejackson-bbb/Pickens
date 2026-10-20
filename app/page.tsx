@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getSeasonStandings, getPostseasonStandings } from "@/lib/queries";
+import { getSeasonStandings, getPostseasonStandings, getWeeklyStandings, type WeeklyStandingRow } from "@/lib/queries";
+import { playerColor } from "@/lib/playerColors";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ export default async function HomePage({ searchParams }: { searchParams: { seaso
   });
   const hasPostseason = weeks.some((w) => w.isPostseason);
   const postseasonStandings = hasPostseason ? await getPostseasonStandings(season.id) : [];
+  const weeklyStandings = await getWeeklyStandings(season.id);
+  const weeklyStandingsByWeekId = new Map(weeklyStandings.map((w) => [w.weekId, w]));
 
   return (
     <div>
@@ -94,30 +97,71 @@ export default async function HomePage({ searchParams }: { searchParams: { seaso
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Weeks</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Week</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {weeks.map((w) => (
-              <tr key={w.id}>
-                <td>{w.label || `Week ${w.weekNumber}`}</td>
-                <td>
-                  <span className={`badge ${statusBadge(w.status)}`}>{w.status}</span>
-                </td>
-                <td>
-                  <Link href={`/weeks/${w.id}`}>View →</Link>
-                </td>
+        <p className="muted" style={{ marginTop: 0, fontSize: "0.85rem" }}>
+          1st/2nd/3rd are plain points for that week -- ties share a place. Not tiebreaker-aware; open a week to see
+          its tiebreaker-resolved winner.
+        </p>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Week</th>
+                <th>Status</th>
+                <th>1st</th>
+                <th>2nd</th>
+                <th>3rd</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {weeks.map((w) => {
+                const standing = weeklyStandingsByWeekId.get(w.id);
+                return (
+                  <tr key={w.id}>
+                    <td>{w.label || `Week ${w.weekNumber}`}</td>
+                    <td>
+                      <span className={`badge ${statusBadge(w.status)}`}>{w.status}</span>
+                    </td>
+                    <td>{formatPlacement(standing, 1)}</td>
+                    <td>{formatPlacement(standing, 2)}</td>
+                    <td>{formatPlacement(standing, 3)}</td>
+                    <td>
+                      <Link href={`/weeks/${w.id}`}>View →</Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
+  );
+}
+
+function formatPlacement(standing: WeeklyStandingRow | undefined, place: number) {
+  const row = standing?.placements.find((p) => p.place === place);
+  if (!row) return <span className="muted">—</span>;
+  return (
+    <span>
+      {row.players.map((p, i) => (
+        <span key={p.id}>
+          {i > 0 && " & "}
+          <span
+            style={{
+              background: playerColor(p.name).fill,
+              color: playerColor(p.name).ink,
+              padding: "0.1rem 0.5rem",
+              borderRadius: 999,
+              fontWeight: 600,
+            }}
+          >
+            {p.name}
+          </span>
+        </span>
+      ))}{" "}
+      <span className="muted">({row.points})</span>
+    </span>
   );
 }
 

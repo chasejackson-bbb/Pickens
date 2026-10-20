@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { StatsPick } from "@/lib/statsData";
+import type { StatsPick, StatsGameSide } from "@/lib/statsData";
 import {
   applyScopeFilters,
   filterByPlayer,
@@ -56,7 +56,17 @@ function pairsFor(players: Player[], focusId: string | null): Array<[Player, Pla
   return pairs;
 }
 
-export function StatsBoard({ picks, seasons, players }: { picks: StatsPick[]; seasons: number[]; players: Player[] }) {
+export function StatsBoard({
+  picks,
+  gameSides,
+  seasons,
+  players,
+}: {
+  picks: StatsPick[];
+  gameSides: StatsGameSide[];
+  seasons: number[];
+  players: Player[];
+}) {
   const latestSeason = seasons[0] ?? new Date().getFullYear();
   const [allTime, setAllTime] = useState(false);
   const [seasonYear, setSeasonYear] = useState<number>(latestSeason);
@@ -72,6 +82,12 @@ export function StatsBoard({ picks, seasons, players }: { picks: StatsPick[]; se
   const scopedPicks = useMemo(
     () => applyScopeFilters(picks, { seasonYears, team, weekMin, weekMax }),
     [picks, seasonYears, team, weekMin, weekMax]
+  );
+  // Section A (league-wide) is scored from every game's both sides, not just the picks players
+  // actually made -- so a game nobody drafted, or where only one side got picked, still counts.
+  const scopedGameSides = useMemo(
+    () => applyScopeFilters(gameSides, { seasonYears, team, weekMin, weekMax }),
+    [gameSides, seasonYears, team, weekMin, weekMax]
   );
   // Head-to-head deliberately ignores the team filter -- see lib/stats.ts computeHeadToHead.
   const h2hPicks = useMemo(
@@ -93,7 +109,7 @@ export function StatsBoard({ picks, seasons, players }: { picks: StatsPick[]; se
     );
   }
 
-  const situational = computeSituationalCoverage(scopedPicks);
+  const situational = computeSituationalCoverage(scopedGameSides);
   const situationalBars = [
     { label: "Home favorite", t: situational.home_favorite },
     { label: "Home underdog", t: situational.home_underdog },
@@ -101,9 +117,12 @@ export function StatsBoard({ picks, seasons, players }: { picks: StatsPick[]; se
     { label: "Away underdog", t: situational.away_underdog },
   ];
 
-  const teamCoverage = computeTeamCoverage(scopedPicks);
-  const spreadBuckets = computeSpreadBucketCoverage(scopedPicks);
-  const overallTally = tally(scopedPicks);
+  const teamCoverage = computeTeamCoverage(scopedGameSides);
+  const spreadBucketsLeague = computeSpreadBucketCoverage(scopedGameSides);
+  const spreadBuckets = computeSpreadBucketCoverage(scopedPicks); // per-player breakdown stays pick-based
+  const overallTally = tally(scopedGameSides);
+  const uniqueGameCount = new Set(scopedGameSides.map((s) => s.gameId)).size;
+  const decidedGameCount = new Set(scopedGameSides.filter((s) => s.result !== "pending").map((s) => s.gameId)).size;
   const draftPositions = computeDraftPositionCoverage(playerScopedPicks);
   const h2hPairs = pairsFor(players, playerId);
 
@@ -188,14 +207,15 @@ export function StatsBoard({ picks, seasons, players }: { picks: StatsPick[]; se
       <div className="card">
         <h3 style={{ marginTop: 0 }}>League-Wide Spread Performance</h3>
         <p className="muted" style={{ fontSize: "0.85rem", marginTop: "-0.5rem" }}>
-          Always all three players combined -- the player filter only narrows the draft-behavior stats below.
+          Every game in scope, both sides, whether or not anyone picked it -- the player filter only narrows the
+          draft-behavior stats below.
         </p>
 
         <div className="stat-tile-grid" style={{ marginBottom: "1.5rem" }}>
           <div className="stat-tile">
-            <div className="stat-tile-label">Picks in scope</div>
-            <div className="stat-tile-value">{scopedPicks.length}</div>
-            <div className="stat-tile-sub">{decidedCount(overallTally)} decided</div>
+            <div className="stat-tile-label">Games in scope</div>
+            <div className="stat-tile-value">{uniqueGameCount}</div>
+            <div className="stat-tile-sub">{decidedGameCount} decided</div>
           </div>
           <div className="stat-tile">
             <div className="stat-tile-label">Overall cover %</div>
@@ -217,13 +237,13 @@ export function StatsBoard({ picks, seasons, players }: { picks: StatsPick[]; se
         <div className="stats-section-title">Cover % by spread size</div>
         <BarChart
           data={[
-            ...spreadBuckets.map((b) => ({
+            ...spreadBucketsLeague.map((b) => ({
               label: `Favorite ${b.label}`,
               value: coverPct(b.favorite),
               sublabel: wl(b.favorite),
               color: "var(--green)",
             })),
-            ...spreadBuckets.map((b) => ({
+            ...spreadBucketsLeague.map((b) => ({
               label: `Underdog ${b.label}`,
               value: coverPct(b.underdog),
               sublabel: wl(b.underdog),
@@ -238,7 +258,7 @@ export function StatsBoard({ picks, seasons, players }: { picks: StatsPick[]; se
             <thead>
               <tr>
                 <th>Team</th>
-                <th>Picks</th>
+                <th>Games</th>
                 <th>Overall</th>
                 <th>Home</th>
                 <th>Away</th>
@@ -259,7 +279,7 @@ export function StatsBoard({ picks, seasons, players }: { picks: StatsPick[]; se
               {teamCoverage.length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    No picks in this filter.
+                    No games in this filter.
                   </td>
                 </tr>
               )}
