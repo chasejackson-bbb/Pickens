@@ -9,6 +9,7 @@ import {
   computeTeamCoverage,
   computeSpreadBucketCoverage,
   computeDraftPositionCoverage,
+  computeOwnPickIndexCoverage,
   computeMostPickedTeams,
   computeFavoriteUnderdogSplit,
   computeHomeAwaySplit,
@@ -124,6 +125,11 @@ export function StatsBoard({
   const uniqueGameCount = new Set(scopedGameSides.map((s) => s.gameId)).size;
   const decidedGameCount = new Set(scopedGameSides.filter((s) => s.result !== "pending").map((s) => s.gameId)).size;
   const draftPositions = computeDraftPositionCoverage(playerScopedPicks);
+  const ownPickRows = playersToShow.map((pl) => ({
+    player: pl,
+    rows: computeOwnPickIndexCoverage(filterByPlayer(scopedPicks, pl.id)),
+  }));
+  const maxOwnPickIndex = Math.max(0, ...ownPickRows.map((r) => (r.rows.length ? r.rows[r.rows.length - 1].index : 0)));
   const h2hPairs = pairsFor(players, playerId);
 
   return (
@@ -293,6 +299,10 @@ export function StatsBoard({
         <h3 style={{ marginTop: 0 }}>Draft &amp; Player Behavior</h3>
 
         <div className="stats-section-title">Cover % by draft position</div>
+        <p className="muted" style={{ fontSize: "0.82rem", marginTop: "-0.5rem" }}>
+          Overall slot in the week's snake draft (1st pick of the whole draft, 2nd, ...) -- mixes all three players
+          together. For each player's own pick order, see below.
+        </p>
         <LineChart
           points={draftPositions.map((d) => ({
             x: d.position,
@@ -301,6 +311,54 @@ export function StatsBoard({
             sublabel: wl(d.tally),
           }))}
         />
+
+        <div className="stats-section-title">Cover % by own pick order</div>
+        <p className="muted" style={{ fontSize: "0.82rem", marginTop: "-0.5rem" }}>
+          Each player's Nth selection of the week -- their 1st pick, 2nd pick, and so on, pooled across every week
+          in scope.
+        </p>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th>
+                {Array.from({ length: maxOwnPickIndex }, (_, i) => (
+                  <th key={i}>Pick {i + 1}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ownPickRows.map(({ player, rows }) => (
+                <tr key={player.id}>
+                  <td>
+                    <span style={playerBadgeStyle(player.name)}>{player.name}</span>
+                  </td>
+                  {Array.from({ length: maxOwnPickIndex }, (_, i) => {
+                    const row = rows.find((r) => r.index === i + 1);
+                    return (
+                      <td key={i}>
+                        {row ? (
+                          <>
+                            {fmtPct(coverPct(row.tally))} <span className="muted">({wl(row.tally)})</span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {maxOwnPickIndex === 0 && (
+                <tr>
+                  <td colSpan={2} className="muted">
+                    No picks in this filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         <div className="stats-section-title">Favorite vs. underdog, home vs. away</div>
         <div className="table-scroll">

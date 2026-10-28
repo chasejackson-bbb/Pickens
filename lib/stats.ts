@@ -177,7 +177,12 @@ export interface DraftPositionRow {
   tally: Tally;
 }
 
-/** Overall pick number within that week's draft (1st pick of the week, 2nd, ...). */
+/**
+ * Overall pick number within that week's draft (1st pick of the whole draft, 2nd, ...) -- this
+ * mixes all three players together, since the snake draft interleaves them. For a single
+ * player's own pick order (their 1st selection of the week, 2nd, ...) see
+ * computeOwnPickIndexCoverage below.
+ */
 export function computeDraftPositionCoverage(picks: StatsPick[]): DraftPositionRow[] {
   const byPos = new Map<number, Tally>();
   for (const p of picks) {
@@ -188,6 +193,38 @@ export function computeDraftPositionCoverage(picks: StatsPick[]): DraftPositionR
   return [...byPos.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([position, t]) => ({ position, tally: t }));
+}
+
+export interface OwnPickIndexRow {
+  index: number; // 1 = that player's first selection of the week, 2 = their second, ...
+  tally: Tally;
+}
+
+/**
+ * Cover % by which pick of their OWN week's draft it was: within each week, a player's picks
+ * are ranked by draftOrderPosition (the shared overall slot) to find their 1st, 2nd, 3rd...
+ * selection that week, then results are pooled by that index across every week in scope. E.g.
+ * index 1 = "how did this player do with the first team they drafted, across every week."
+ */
+export function computeOwnPickIndexCoverage(picks: StatsPick[]): OwnPickIndexRow[] {
+  const byWeek = new Map<string, StatsPick[]>();
+  for (const p of picks) {
+    if (p.draftOrderPosition === null) continue;
+    if (!byWeek.has(p.weekId)) byWeek.set(p.weekId, []);
+    byWeek.get(p.weekId)!.push(p);
+  }
+
+  const byIndex = new Map<number, Tally>();
+  for (const weekPicks of byWeek.values()) {
+    const sorted = weekPicks.slice().sort((a, b) => (a.draftOrderPosition ?? 0) - (b.draftOrderPosition ?? 0));
+    sorted.forEach((p, i) => {
+      const index = i + 1;
+      if (!byIndex.has(index)) byIndex.set(index, emptyTally());
+      addResult(byIndex.get(index)!, p.result);
+    });
+  }
+
+  return [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([index, t]) => ({ index, tally: t }));
 }
 
 // --- B2: most-picked teams (per player, computed by caller passing pre-filtered picks) -----
