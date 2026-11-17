@@ -30,6 +30,7 @@ export function WeekBoard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guessValue, setGuessValue] = useState("");
+  const [actualValue, setActualValue] = useState("");
   const [windowFrom, setWindowFrom] = useState<string | null>(null);
   const [windowTo, setWindowTo] = useState<string | null>(null);
 
@@ -377,6 +378,36 @@ export function WeekBoard({
             }
           >
             Reveal all guesses
+          </button>
+        </div>
+        <p className="muted" style={{ fontSize: "0.85rem", marginTop: "0.75rem", marginBottom: "0.4rem" }}>
+          Once the real number is known, enter it here -- if two or more players are tied for the
+          week, whoever guessed closest automatically becomes the sole winner (here and on the
+          standings page).
+        </p>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            type="number"
+            placeholder={
+              week.tiebreakerConfig?.actualValue != null
+                ? `Actual result (currently ${week.tiebreakerConfig.actualValue})`
+                : "Actual result"
+            }
+            value={actualValue}
+            onChange={(e) => setActualValue(e.target.value)}
+            style={{ width: "14rem" }}
+          />
+          <button
+            className="secondary"
+            disabled={busy || actualValue === ""}
+            onClick={() =>
+              run(async () => {
+                await postJson(`/api/weeks/${weekId}/tiebreaker`, { actualValue: Number(actualValue) }, "PUT");
+                setActualValue("");
+              })
+            }
+          >
+            Save actual result
           </button>
         </div>
         <table style={{ marginTop: "0.75rem" }}>
