@@ -98,8 +98,8 @@ export default async function HomePage({ searchParams }: { searchParams: { seaso
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Weeks</h3>
         <p className="muted" style={{ marginTop: 0, fontSize: "0.85rem" }}>
-          1st/2nd/3rd are plain points for that week -- ties share a place. Not tiebreaker-aware; open a week to see
-          its tiebreaker-resolved winner.
+          1st/2nd/3rd are points for that week. A tie for 1st is broken by the tiebreaker once its actual result is
+          entered and every tied player's guess is revealed -- otherwise ties share a place.
         </p>
         <div className="table-scroll">
           <table>

@@ -180,17 +180,27 @@ export interface WeeklyStandingRow {
 }
 
 /**
- * Per-week placements (1st/2nd/3rd, ties sharing a place) for every week in a season that has
- * at least one pick -- shown on the standings page so the week's winner and score are visible
- * without opening each week. Plain points-based ranking, same convention as getAllTimeStats's
- * firsts/seconds/thirds counts -- deliberately not tiebreaker-aware: the tiebreaker only exists
- * to pick a single winner for payouts, and may still be hidden/unrevealed for a given week.
+ * Per-week placements (1st/2nd/3rd) for every week in a season that has at least one pick --
+ * shown on the standings page so the week's winner and score are visible without opening each
+ * week. Plain points-based ranking, with ties sharing a place -- the same dense-ranking
+ * convention as getAllTimeStats's firsts/seconds/thirds counts -- EXCEPT for a tie at 1st: if
+ * the tiebreaker has an actual value recorded and every tied leader's guess is revealed,
+ * determineWeeklyWinner resolves it to a single winner, exactly like the week page's own
+ * "Weekly totals" winner. When that happens the resolved winner gets 1st alone, the rest of the
+ * former tie drops to 2nd (still tied with each other, since there's no mechanism to break a
+ * tie for anything other than the weekly win), and whatever was 2nd shifts to 3rd. A tie at
+ * 1st that isn't resolvable (no actual value yet, or a guess still hidden) is shown tied, same
+ * as before.
  */
 export async function getWeeklyStandings(seasonId: string): Promise<WeeklyStandingRow[]> {
   const weeks = await prisma.week.findMany({
     where: { seasonId },
     orderBy: { weekNumber: "asc" },
-    include: { picks: { include: { player: true } } },
+    include: {
+      picks: { include: { player: true } },
+      tiebreakerGuesses: true,
+      tiebreakerConfig: true,
+    },
   });
 
   return weeks
@@ -204,12 +214,22 @@ export async function getWeeklyStandings(seasonId: string): Promise<WeeklyStandi
       const ranked = [...totals.values()].sort((a, b) => b.points - a.points);
       const distinctPoints = [...new Set(ranked.map((r) => r.points))].sort((a, b) => b - a);
 
-      const byPlace = new Map<number, { place: number; points: number; players: Array<{ id: string; name: string }> }>();
-      for (const r of ranked) {
-        const place = distinctPoints.indexOf(r.points) + 1;
-        if (place > 3) continue;
-        if (!byPlace.has(place)) byPlace.set(place, { place, points: r.points, players: [] });
-        byPlace.get(place)!.players.push({ id: r.id, name: r.name });
+      let groups: Array<{ points: number; players: Array<{ id: string; name: string }> }> = distinctPoints.map(
+        (points) => ({ points, players: ranked.filter((r) => r.points === points).map((r) => ({ id: r.id, name: r.name })) })
+      );
+
+      if (groups.length > 0 && groups[0].players.length > 1) {
+        const resolution = determineWeeklyWinner(
+          ranked.map((r) => ({ playerId: r.id, points: r.points })),
+          w.tiebreakerGuesses.map((g) => ({ playerId: g.playerId, guessValue: g.guessValue, revealed: g.revealed })),
+          w.tiebreakerConfig?.actualValue ?? null
+        );
+        if (!resolution.tied && resolution.winnerIds.length === 1) {
+          const winnerId = resolution.winnerIds[0];
+          const winner = groups[0].players.find((p) => p.id === winnerId)!;
+          const rest = groups[0].players.filter((p) => p.id !== winnerId);
+          groups = [{ points: groups[0].points, players: [winner] }, { points: groups[0].points, players: rest }, ...groups.slice(1)];
+        }
       }
 
       return {
@@ -218,7 +238,7 @@ export async function getWeeklyStandings(seasonId: string): Promise<WeeklyStandi
         label: w.label,
         status: w.status,
         isPostseason: w.isPostseason,
-        placements: [...byPlace.values()].sort((a, b) => a.place - b.place),
+        placements: groups.slice(0, 3).map((g, i) => ({ place: i + 1, points: g.points, players: g.players })),
       };
     });
 }
